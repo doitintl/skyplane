@@ -1,9 +1,8 @@
 import base64
+import json
 import os
 import time
-import json
 from pathlib import Path
-
 from typing import Optional
 
 from skyplane.compute.server import key_root
@@ -33,7 +32,9 @@ class GCPAuthentication:
         with gcp_config_path.open("w") as f:
             region_list = []
             credentials = self.credentials
-            service_account_credentials_file = self.service_account_credentials  # force creation of file
+            service_account_credentials_file = (
+                self.service_account_credentials
+            )  # force creation of file
             service = discovery.build("compute", "beta", credentials=credentials)
             request = service.zones().list(project=self.project_id)
             while request is not None:
@@ -42,14 +43,18 @@ class GCPAuthentication:
                 for region in response["items"]:
                     region_list.append(region["description"])
 
-                request = service.regions().list_next(previous_request=request, previous_response=response)
+                request = service.regions().list_next(
+                    previous_request=request, previous_response=response
+                )
 
             f.write("\n".join(region_list))
             print(f"    GCP region config file saved to {gcp_config_path}")
 
         try:
             with gcp_quota_path.open("w") as f:
-                service = discovery.build("compute", "beta", credentials=self.credentials)
+                service = discovery.build(
+                    "compute", "beta", credentials=self.credentials
+                )
                 request = service.regions().list(project=self.project_id)
                 region_to_vcpus = {}
                 while request is not None:
@@ -59,13 +64,19 @@ class GCPAuthentication:
                             continue
                         region_name = region["name"]
                         for quota_item in region["quotas"]:
-                            if quota_item["metric"] == "N2_CPUS":  # Initially only concerned with N2 limits
+                            if (
+                                quota_item["metric"] == "N2_CPUS"
+                            ):  # Initially only concerned with N2 limits
                                 region_to_vcpus[region_name] = quota_item["limit"]
                                 break
-                    request = service.regions().list_next(previous_request=request, previous_response=response)
+                    request = service.regions().list_next(
+                        previous_request=request, previous_response=response
+                    )
                 json.dump(region_to_vcpus, f)
         except Exception:
-            logger.warning("Failed to retrieve GCP quota information. Skyplane will a conservative configuration.")
+            logger.warning(
+                "Failed to retrieve GCP quota information. Skyplane will a conservative configuration."
+            )
 
     @staticmethod
     def clear_region_config():
@@ -88,9 +99,13 @@ class GCPAuthentication:
     @property
     def service_account_credentials(self):
         if self._service_credentials_file is None:
-            self._service_account_email = self.create_service_account(self.service_account_name)
+            self._service_account_email = self.create_service_account(
+                self.service_account_name
+            )
             # create service key
-            self._service_credentials_file = self.get_service_account_key(self._service_account_email)
+            self._service_credentials_file = self.get_service_account_key(
+                self._service_account_email
+            )
 
         return self._service_credentials_file
 
@@ -105,9 +120,13 @@ class GCPAuthentication:
     @imports.inject("google.auth", pip_extra="gcp")
     def get_adc_credential(google_auth, project_id=None):
         try:
-            inferred_cred, inferred_project = google_auth.default(quota_project_id=project_id)
+            inferred_cred, inferred_project = google_auth.default(
+                quota_project_id=project_id
+            )
         except google_auth.exceptions.DefaultCredentialsError as e:
-            logger.warning(f"Failed to load GCP credentials for project {project_id}: {e}")
+            logger.warning(
+                f"Failed to load GCP credentials for project {project_id}: {e}"
+            )
             inferred_cred, inferred_project = (None, None)
         if project_id is not None and project_id != inferred_project:
             if inferred_project is not None:
@@ -120,9 +139,17 @@ class GCPAuthentication:
     def get_operation_state(self, zone, operation_name):
         compute = self.get_gcp_client()
         if zone == "global":
-            return compute.globalOperations().get(project=self.project_id, operation=operation_name).execute()
+            return (
+                compute.globalOperations()
+                .get(project=self.project_id, operation=operation_name)
+                .execute()
+            )
         else:
-            return compute.zoneOperations().get(project=self.project_id, zone=zone, operation=operation_name).execute()
+            return (
+                compute.zoneOperations()
+                .get(project=self.project_id, zone=zone, operation=operation_name)
+                .execute()
+            )
 
     def wait_for_operation_to_complete(self, zone, operation_name, timeout=120):
         time_intervals = [0.1] * 10 + [0.2] * 10 + [1.0] * int(timeout)  # backoff
@@ -159,15 +186,25 @@ class GCPAuthentication:
         # write key file
         if not os.path.exists(self.service_account_key_path):
             # list existing keys
-            keys = service.projects().serviceAccounts().keys().list(name="projects/-/serviceAccounts/" + service_account_email).execute()
+            keys = (
+                service.projects()
+                .serviceAccounts()
+                .keys()
+                .list(name="projects/-/serviceAccounts/" + service_account_email)
+                .execute()
+            )
 
             # cannot have more than 10 keys per service account
             if len(keys["keys"]) >= 10:
-                logger.warning(f"Service account {service_account_email} has too many keys. Deleting stale keys to create new key.")
+                logger.warning(
+                    f"Service account {service_account_email} has too many keys. Deleting stale keys to create new key."
+                )
                 deleted_keys = 0
                 for key in keys["keys"]:
                     try:
-                        service.projects().serviceAccounts().keys().delete(name=key["name"]).execute()
+                        service.projects().serviceAccounts().keys().delete(
+                            name=key["name"]
+                        ).execute()
                         deleted_keys += 1
                     except Exception as e:
                         raise ValueError(f"Failed to delete key {key['name']}: {e}")
@@ -177,7 +214,9 @@ class GCPAuthentication:
                 service.projects()
                 .serviceAccounts()
                 .keys()
-                .create(name="projects/-/serviceAccounts/" + service_account_email, body={})
+                .create(
+                    name="projects/-/serviceAccounts/" + service_account_email, body={}
+                )
                 .execute()
             )
 
@@ -190,14 +229,30 @@ class GCPAuthentication:
 
     def create_service_account(self, service_name):
         service = self.get_gcp_client(service_name="iam")
-        service_accounts = service.projects().serviceAccounts().list(name="projects/" + self.project_id).execute()["accounts"]
-
-        # search for pre-existing service account
         account = None
-        for service_account in service_accounts:
-            if service_account["email"].split("@")[0] == service_name:
-                account = service_account
+        next_page_token = None
+
+        while True:
+            # Get a list of service accounts, with pagination support
+            request = (
+                service.projects()
+                .serviceAccounts()
+                .list(name=f"projects/{self.project_id}", pageToken=next_page_token)
+            )
+            response = request.execute()
+
+            # Check if any of the service accounts match the service_name
+            for service_account in response.get("accounts", []):
+                if service_account["email"].split("@")[0] == service_name:
+                    account = service_account
+                    break
+
+            # If account is found or no more pages, break out of the loop
+            if account or "nextPageToken" not in response:
                 break
+
+            # Update next_page_token to get the next page of results
+            next_page_token = response["nextPageToken"]
 
         # create service account
         if account is None:
@@ -205,7 +260,11 @@ class GCPAuthentication:
                 service.projects()
                 .serviceAccounts()
                 .create(
-                    name="projects/" + self.project_id, body={"accountId": service_name, "serviceAccount": {"displayName": service_name}}
+                    name="projects/" + self.project_id,
+                    body={
+                        "accountId": service_name,
+                        "serviceAccount": {"displayName": service_name},
+                    },
                 )
                 .execute()
             )
@@ -222,7 +281,9 @@ class GCPAuthentication:
             target_role = "roles/storage.admin"
             if target_role not in roles:
                 # role does not exist
-                policy["bindings"].append({"role": target_role, "members": [account_handle]})
+                policy["bindings"].append(
+                    {"role": target_role, "members": [account_handle]}
+                )
                 modified = True
             else:
                 for role in policy["bindings"]:
@@ -231,32 +292,62 @@ class GCPAuthentication:
                             role["members"].append(account_handle)  # do NOT override
                             modified = True
             if modified:  # execute policy change
-                service.projects().setIamPolicy(resource=self.project_id, body={"policy": policy}).execute()
+                service.projects().setIamPolicy(
+                    resource=self.project_id, body={"policy": policy}
+                ).execute()
             return account["email"]
 
-        return retry_backoff(read_modify_write)  # retry loop needed for concurrent policy modifications
+        return retry_backoff(
+            read_modify_write
+        )  # retry loop needed for concurrent policy modifications
 
     def enabled(self):
-        return self.config.gcp_enabled and self.credentials is not None and self.project_id is not None
+        return (
+            self.config.gcp_enabled
+            and self.credentials is not None
+            and self.project_id is not None
+        )
 
     def check_api_enabled(self, api_name: str):
         service_usage = self.get_gcp_client(service_name="serviceusage")
-        services = service_usage.services().get(name=f"projects/{self.project_id}/services/{api_name}.googleapis.com").execute()
+        services = (
+            service_usage.services()
+            .get(name=f"projects/{self.project_id}/services/{api_name}.googleapis.com")
+            .execute()
+        )
         return services.get("state") == "ENABLED"
 
     def enable_api(self, service_name: str):
         service_usage = self.get_gcp_client(service_name="serviceusage")
-        return service_usage.services().enable(name=f"projects/{self.project_id}/services/{service_name}.googleapis.com").execute()
+        return (
+            service_usage.services()
+            .enable(
+                name=f"projects/{self.project_id}/services/{service_name}.googleapis.com"
+            )
+            .execute()
+        )
 
     @imports.inject("googleapiclient.discovery", pip_extra="gcp")
     def get_gcp_client(discovery, self, service_name="compute", version="v1"):
-        return discovery.build(service_name, version, credentials=self.credentials, client_options={"quota_project_id": self.project_id})
+        return discovery.build(
+            service_name,
+            version,
+            credentials=self.credentials,
+            client_options={"quota_project_id": self.project_id},
+        )
 
     @imports.inject("google.cloud.storage", pip_extra="gcp")
     def get_storage_client(storage, self):
         # TODO: cache storage account clinet
         # check that storage account works
-        return storage.Client.from_service_account_json(self.service_account_credentials)
+        return storage.Client.from_service_account_json(
+            self.service_account_credentials
+        )
 
     def get_gcp_instances(self, gcp_region: str):
-        return self.get_gcp_client().instances().list(project=self.project_id, zone=gcp_region).execute()
+        return (
+            self.get_gcp_client()
+            .instances()
+            .list(project=self.project_id, zone=gcp_region)
+            .execute()
+        )
