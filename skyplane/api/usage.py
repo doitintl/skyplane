@@ -1,31 +1,29 @@
+import configparser
 import datetime
 import json
 import os
 import sys
 import time
 import uuid
-import configparser
 from dataclasses import asdict, dataclass
 from enum import Enum, auto
 from pathlib import Path
+from typing import Optional, Dict, List
 
 import requests
 from rich import print as rprint
-from typing import Optional, Dict, List
 
 import skyplane
-from skyplane.utils.definitions import tmp_log_dir
 from skyplane.config import _map_type
 from skyplane.config_paths import config_path, cloud_config, host_uuid_path
 from skyplane.utils import logger, imports
+from skyplane.utils.definitions import tmp_log_dir
 
 SCHEMA_VERSION = "0.2"
 LOKI_URL = "http://34.212.234.105:9090/loki/api/v1/push"
 USAGE_STATS_ENABLED_ENV_VAR = "SKYPLANE_USAGE_STATS_ENABLED"
 USAGE_STATS_FILE = "usage_stats.json"
-USAGE_STATS_ENABLED_MESSAGE = (
-    "[bright_black]To disable performance logging info: https://skyplane.org/en/latest/performance_stats_collection.html[/bright_black]"
-)
+USAGE_STATS_ENABLED_MESSAGE = "[bright_black]To disable performance logging info: https://skyplane.org/en/latest/performance_stats_collection.html[/bright_black]"
 USAGE_STATS_DISABLED_RECONFIRMATION_MESSAGE = (
     "[green][bold]We are an academic research group working to improve inter-cloud network performance.[/bold] "
     "You can inspect what we share in the /tmp/skyplane/metrics directory. "
@@ -38,9 +36,7 @@ USAGE_STATS_DISABLED_RECONFIRMATION_MESSAGE = (
     "\n    * Total runtime and the aggregated transfer speed in Gbps"
     "\n    * Error message if the transfer fails"
 )
-USAGE_STATS_REENABLE_MESSAGE = (
-    "[yellow][bold]If you want to re-enable usage statistics, run `skyplane config set usage_stats true`.[/bold][/yellow]"
-)
+USAGE_STATS_REENABLE_MESSAGE = "[yellow][bold]If you want to re-enable usage statistics, run `skyplane config set usage_stats true`.[/bold][/yellow]"
 USAGE_STATS_REENABLED_MESSAGE = (
     "[green][bold]Thank you for your support of open-source research![/bold][/green]"
     "\nIf you want to disable usage statistics, run `skyplane config set usage_stats false`."
@@ -219,18 +215,26 @@ class UsageClient:
     def set_usage_stats_via_config(typer, cls, value, config):
         current_status = cls.usage_stats_status()
         if current_status is UsageStatsStatus.DISABLED_EXPLICITLY:
-            if (isinstance(value, bool) and not value) or (isinstance(value, str) and not _map_type(value, bool)):
+            if (isinstance(value, bool) and not value) or (
+                isinstance(value, str) and not _map_type(value, bool)
+            ):
                 rprint("Usage stats collection is already disabled.")
                 rprint(USAGE_STATS_REENABLE_MESSAGE)
                 return
         elif current_status is UsageStatsStatus.ENABLED_EXPLICITLY:
-            if (isinstance(value, bool) and value) or (isinstance(value, str) and _map_type(value, bool)):
+            if (isinstance(value, bool) and value) or (
+                isinstance(value, str) and _map_type(value, bool)
+            ):
                 rprint("Usage stats collection is already enabled.")
                 rprint(USAGE_STATS_REENABLED_MESSAGE)
                 return
 
-        if (isinstance(value, bool) and not value) or (isinstance(value, str) and not _map_type(value, bool)):
-            prompt = "Would you still like to opt out of sharing anonymous usage metrics?"
+        if (isinstance(value, bool) and not value) or (
+            isinstance(value, str) and not _map_type(value, bool)
+        ):
+            prompt = (
+                "Would you still like to opt out of sharing anonymous usage metrics?"
+            )
             rprint(USAGE_STATS_DISABLED_RECONFIRMATION_MESSAGE + "\n")
             answer = typer.confirm(prompt, default=False)
             if not answer:
@@ -242,7 +246,9 @@ class UsageClient:
         try:
             config.set_flag("usage_stats", value)
         except Exception as e:
-            raise Exception("Failed to enable/disable by writing to" f"{config_path}") from e
+            raise Exception(
+                "Failed to enable/disable by writing to" f"{config_path}"
+            ) from e
 
         if config.get_flag("usage_stats"):
             rprint(USAGE_STATS_REENABLED_MESSAGE)
@@ -265,6 +271,9 @@ class UsageClient:
         if dest_region_tags is None:
             dest_provider, dest_region = None, None
         else:
+            if isinstance(dest_region_tags, str):
+                dest_region_tags = [dest_region_tags]
+
             dest_providers = [tag.split(":")[0] for tag in dest_region_tags]
             dest_regions = [tag.split(":")[1] for tag in dest_region_tags]
 
@@ -279,7 +288,11 @@ class UsageClient:
             source_cloud_provider=src_provider,
             destination_cloud_providers=dest_providers,
             os=sys.platform,
-            session_start_timestamp_ms=session_start_timestamp_ms if session_start_timestamp_ms else int(time.time() * 1000),
+            session_start_timestamp_ms=(
+                session_start_timestamp_ms
+                if session_start_timestamp_ms
+                else int(time.time() * 1000)
+            ),
             arguments_dict=arguments_dict,
             transfer_stats=transfer_stats,
         )
@@ -316,12 +329,18 @@ class UsageClient:
             source_cloud_provider=src_provider,
             destination_cloud_providers=dest_providers,  # TODO: FIX THIS
             os=sys.platform,
-            session_start_timestamp_ms=session_start_timestamp_ms if session_start_timestamp_ms else int(time.time() * 1000),
+            session_start_timestamp_ms=(
+                session_start_timestamp_ms
+                if session_start_timestamp_ms
+                else int(time.time() * 1000)
+            ),
             arguments_dict=arguments_dict,
             error_dict=error_dict,
         )
 
-    def write_usage_data(self, data: UsageStatsToReport, dir_path: Optional[Path] = None):
+    def write_usage_data(
+        self, data: UsageStatsToReport, dir_path: Optional[Path] = None
+    ):
         """Write the usage data to the directory.
 
         :param data: data to report
@@ -342,7 +361,9 @@ class UsageClient:
             json_file.write(json.dumps(asdict(data)))
         return destination
 
-    def report_usage_data(self, type: str, data: UsageStatsToReport, path: Path) -> None:
+    def report_usage_data(
+        self, type: str, data: UsageStatsToReport, path: Path
+    ) -> None:
         """Report the usage data to the usage server.
 
         :param type: the type of usage stats to report
@@ -356,7 +377,16 @@ class UsageClient:
         prom_labels = {"type": type, "environment": "api"}
         headers = {"Content-type": "application/json"}
         data.sent_time_ms = int(time.time() * 1000)
-        payload = {"streams": [{"stream": prom_labels, "values": [[str(_get_current_timestamp_ns()), json.dumps(asdict(data))]]}]}
+        payload = {
+            "streams": [
+                {
+                    "stream": prom_labels,
+                    "values": [
+                        [str(_get_current_timestamp_ns()), json.dumps(asdict(data))]
+                    ],
+                }
+            ]
+        }
         payload = json.dumps(payload)
         r = requests.post(LOKI_URL, headers=headers, data=payload, timeout=0.5)
 
