@@ -3060,4 +3060,4 @@ solver = ["cvxpy", "graphviz", "matplotlib", "numpy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "2a94b43e4996fedc11bcb08828594f154314f54a13fe3059c1f052f6dfc37a37"
+content-hash = "a6ff4a486eb212b829843446fbda8d89cfdc847c8f1c1b150e9528d35051d7f4"
