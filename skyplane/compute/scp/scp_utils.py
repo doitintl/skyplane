@@ -27,15 +27,17 @@
 
 import base64
 import datetime
-from functools import wraps
 import hashlib
 import hmac
-import os
 import json
+import os
 import random
 import time
+from functools import wraps
 from urllib import parse
+
 import requests
+
 from skyplane.utils import logger
 
 CREDENTIALS_PATH = "~/.scp/scp_credential"
@@ -84,7 +86,9 @@ def _retry(method, max_tries=60, backoff_s=1):
                 if any(code in str(e) for code in retry_codes):
                     try_count += 1
                     # console.print(f"[yellow] retries: {method.__name__} - {e}, try_count : {try_count}[/yellow]")
-                    logger.fs.debug(f"retries: {method.__name__} - {e}, try_count : {try_count}")
+                    logger.fs.debug(
+                        f"retries: {method.__name__} - {e}, try_count : {try_count}"
+                    )
                     if try_count < max_tries:
                         time.sleep(backoff_s)
                     else:
@@ -93,7 +97,9 @@ def _retry(method, max_tries=60, backoff_s=1):
                     try_count += 1
                     # with open(f"/skyplane/retry_nocode_error.txt", "w") as f:
                     #     f.write(str(e))
-                    logger.fs.debug(f"retries: {method.__name__} - {e}, try_count : {try_count}")
+                    logger.fs.debug(
+                        f"retries: {method.__name__} - {e}, try_count : {try_count}"
+                    )
                     if try_count < max_tries:
                         time.sleep(backoff_s)
                     else:
@@ -114,10 +120,15 @@ class SCPClient:
         self.credentials = os.path.expanduser(CREDENTIALS_PATH)
         if not os.path.exists(self.credentials):
             self.credentials = os.path.expanduser("/pkg/data/scp_credential")
-        assert os.path.exists(self.credentials), "SCP Credentials not found"
+
+        assert os.path.exists(
+            self.credentials
+        ), f"SCP Credentials not found at {self.credentials}"
         with open(self.credentials, "r") as f:
             lines = [line.strip() for line in f.readlines() if " = " in line]
-            self._credentials = {line.split(" = ")[0]: line.split(" = ")[1] for line in lines}
+            self._credentials = {
+                line.split(" = ")[0]: line.split(" = ")[1] for line in lines
+            }
 
         self.access_key = self._credentials["scp_access_key"]
         self.secret_key = self._credentials["scp_secret_key"]
@@ -194,7 +205,9 @@ class SCPClient:
             # return response.content.decode('utf-8')
             return response
 
-    def wait_for_completion(self, task_name, completion_condition, retry_limit=5, timeout=180):
+    def wait_for_completion(
+        self, task_name, completion_condition, retry_limit=5, timeout=180
+    ):
         start = time.time()
         # console.print(f"[bright_black] Waiting for... {task_name} [/bright_black]")
         logger.fs.debug(f"Waiting for... {task_name}")
@@ -207,7 +220,9 @@ class SCPClient:
             except Exception as e:
                 retries += 1
                 # print(f"Exception occurred during completion_condition(): {task_name} - {e}, retries : {retries}")
-                logger.fs.debug(f"Exception occurred during completion_condition(): {task_name} - {e}, retries : {retries}")
+                logger.fs.debug(
+                    f"Exception occurred during completion_condition(): {task_name} - {e}, retries : {retries}"
+                )
             time.sleep(1)
         if retries == retry_limit:
             # console.print(f"[red] {task_name}... Retry limit reached [/red]")
@@ -232,14 +247,26 @@ class SCPClient:
         url = f"{url_info.scheme}://{url_info.netloc}{parse.quote(url_info.path)}"
 
         if url_info.query:
-            enc_params = [(item[0], parse.quote(item[1][0])) for item in parse.parse_qs(url_info.query).items()]
+            enc_params = [
+                (item[0], parse.quote(item[1][0]))
+                for item in parse.parse_qs(url_info.query).items()
+            ]
             url = f"{url}?{parse.urlencode(enc_params)}"
 
-        message = method + url + self.timestamp + self.access_key + self.project_id + self.client_type
+        message = (
+            method
+            + url
+            + self.timestamp
+            + self.access_key
+            + self.project_id
+            + self.client_type
+        )
         message = message.encode("utf-8")
         secret = self.secret_key.encode("utf-8")
 
-        signature = base64.b64encode(hmac.new(secret, message, digestmod=hashlib.sha256).digest()).decode("utf-8")
+        signature = base64.b64encode(
+            hmac.new(secret, message, digestmod=hashlib.sha256).digest()
+        ).decode("utf-8")
 
         return signature
 

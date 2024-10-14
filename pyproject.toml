@@ -77,7 +77,7 @@ solver = ["cvxpy", "graphviz", "matplotlib", "numpy"]
 pytest = ">=6.0.0"
 pytest-cov = ">=2.10.0"
 pytest-xdist = ">=2.0.0"
-black = "^23.1.0"
+black = "^24.10.0"
 
 [build-system]
 requires = ["setuptools", "poetry-core>=1.2.0"]
