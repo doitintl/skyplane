@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # install apt packages
 RUN --mount=type=cache,target=/var/cache/apt apt-get update \
@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/var/cache/apt apt-get update \
 ##install HDFS Onprem Packages
 #RUN apt-get update && \
 #    apt-get install -y openjdk-11-jdk && \
-#    apt-get clean 
+#    apt-get clean
 #
 #ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 #
